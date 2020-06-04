@@ -62,6 +62,7 @@ func handleConnect(conn net.Conn) {
 		return
 	}
 	var protoIpAddress []byte
+	var protoDomainString string
 	if protoAtype == 1 {
 		// ip v4 address
 
@@ -86,6 +87,7 @@ func handleConnect(conn net.Conn) {
 			fmt.Println("could not read domain name")
 			return
 		}
+		protoDomainString = string(protoDomainName)
 		fmt.Println("read this domain", n, protoDomainName)
 
 	} else if protoAtype == 4 {
@@ -115,8 +117,11 @@ func handleConnect(conn net.Conn) {
 			cs = fmt.Sprintf("%d.%d.%d.%d:%d",
 				protoIpAddress[0], protoIpAddress[1],
 				protoIpAddress[2], protoIpAddress[3], iPort)
-			fmt.Println("cs is", cs)
+		} else if protoAtype == 3 {
+			cs = fmt.Sprintf("%s:%d",
+				protoDomainString, iPort)
 		}
+		fmt.Println("cs is", cs)
 		//var outNetConn net.Conn
 		outNewConn, err := net.Dial("tcp4", cs)
 		if err != nil {
@@ -143,6 +148,10 @@ func handleConnect(conn net.Conn) {
 		for {
 			go io.Copy(conn, outNewConn)
 			go io.Copy(outNewConn, conn)
+
+			// tried this it did not work
+			//go relay(conn, outNewConn)
+			//go relay(outNewConn, conn)
 		}
 
 	} else if protoCommand == 2 {
@@ -157,7 +166,7 @@ func handleConnect(conn net.Conn) {
 		fmt.Println("err on request detail", protoCommand)
 		return
 	}
-
+	fmt.Println("returning now")
 	return
 
 	// need to connect tcp wise to the port requested and the IP address requested
@@ -168,6 +177,13 @@ func handleConnect(conn net.Conn) {
 	for {
 	}
 
+}
+
+func relay(src net.Conn, dst net.Conn) {
+	io.Copy(dst, src)
+	dst.Close()
+	src.Close()
+	return
 }
 
 func main() {
