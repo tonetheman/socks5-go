@@ -145,6 +145,17 @@ func handleConnect(conn net.Conn) {
 		fmt.Println("sending response to connect now")
 		conn.Write(connectResponse)
 
+		/*
+			//nope
+			complete := make(chan bool, 2)
+			ch1 := make(chan bool, 1)
+			ch2 := make(chan bool, 1)
+			copyBytes(conn, outNewConn, complete, ch1, ch2)
+			copyBytes(outNewConn, conn, complete, ch2, ch1)
+			<-complete
+			<-complete
+		*/
+
 		for {
 			go io.Copy(conn, outNewConn)
 			go io.Copy(outNewConn, conn)
@@ -179,12 +190,42 @@ func handleConnect(conn net.Conn) {
 
 }
 
+func copyBytes(src net.Conn, dst net.Conn,
+	complete chan bool, done chan bool, otherDone chan bool) {
+	var err error = nil
+	var bytes []byte = make([]byte, 256)
+	var read int = 0
+	for {
+		select {
+		case <-otherDone:
+			complete <- true
+			return
+		default:
+			read, err = src.Read(bytes)
+			if err != nil {
+				complete <- true
+				done <- true
+				return
+			}
+			_, err = dst.Write(bytes[:read])
+			if err != nil {
+				complete <- true
+				done <- true
+				break
+			}
+		}
+	}
+}
+
+// nope
+/*
 func relay(src net.Conn, dst net.Conn) {
 	io.Copy(dst, src)
 	dst.Close()
 	src.Close()
 	return
 }
+*/
 
 func main() {
 	args := os.Args
