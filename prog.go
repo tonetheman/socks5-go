@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"net"
 	"os"
 )
@@ -12,27 +10,38 @@ import (
 func handleConnect(conn net.Conn) {
 	fmt.Println("handling connect!")
 	defer conn.Close()
-	reader := bufio.NewReader(conn)
-	protoVersion, err := reader.ReadByte()
-	if err != nil || protoVersion != 5 {
-		fmt.Println("wrong protocol version", protoVersion, err)
+	var singleByte []byte = make([]byte, 1)
+
+	count, err := conn.Read(singleByte)
+	if err != nil || count != 1 {
+		fmt.Println("unable to read from net for proto version", err)
 		return
 	}
-	numMethods, err := reader.ReadByte()
-	if err != nil || numMethods < 1 || numMethods > 255 {
+	protoVersion := singleByte[0]
+	if protoVersion != 5 {
+		fmt.Println("wrong protocol version", protoVersion)
+		return
+	}
+	count, err = conn.Read(singleByte)
+	if err != nil || count != 1 {
+		fmt.Println("unalbe to read from net for numMethods", err)
+		return
+	}
+	numMethods := singleByte[0]
+	if numMethods < 1 || numMethods > 255 {
 		fmt.Println("incorrect num of methods", numMethods, err)
+		return
 	}
 
-	methodData := make([]uint, numMethods)
+	methodData := make([]uint, int(numMethods))
 	for i := 0; i < int(numMethods); i++ {
-		tmp, err := reader.ReadByte()
-		if err != nil {
+		count, err := conn.Read(singleByte)
+		if err != nil || count != 1 {
 			fmt.Println("err reading a method", err)
 			return
 		}
-		methodData[i] = uint(tmp)
+		methodData[i] = uint(singleByte[0])
 	}
-	//fmt.Println("methods", methodData)
 
 	// we are protocol version 5
 	// and we do not take any auth method
@@ -42,32 +51,45 @@ func handleConnect(conn net.Conn) {
 
 	// since we have no auth the client should
 	// send the request details next
-	protoVersion, err = reader.ReadByte()
-	if err != nil || protoVersion != 5 {
-		fmt.Println("err reading request details", protoVersion, err)
+	count, err = conn.Read(singleByte)
+	if err != nil || count != 1 {
+		fmt.Println("err reading request details", err)
 		return
 	}
-	protoCommand, err := reader.ReadByte()
+	protoVersion = singleByte[0]
+	if protoVersion != 5 {
+		fmt.Println("invalid proroversion", protoVersion)
+	}
+	count, err = conn.Read(singleByte)
 	if err != nil {
 		fmt.Println("err reading request command", err)
 	}
-	protoReserved, err := reader.ReadByte()
-	if err != nil || protoReserved != 0 {
-		fmt.Println("weird in reserved", protoReserved, err)
+	protoCommand := singleByte[0]
+
+	count, err = conn.Read(singleByte)
+	if err != nil {
+		fmt.Println("weird in reserved", err)
 		return
 	}
-	protoAtype, err := reader.ReadByte()
+	protoReserved := singleByte[0]
+	if protoReserved != 0 {
+		fmt.Println("reserved not zero", protoReserved)
+		return
+	}
+
+	count, err = conn.Read(singleByte)
 	if err != nil {
 		fmt.Println("unable to read atype", err)
 		return
 	}
+	protoAtype := singleByte[0]
 	var protoIpAddress []byte
 	var protoDomainString string
 	if protoAtype == 1 {
 		// ip v4 address
 
 		protoIpAddress = make([]byte, 4)
-		n, err := reader.Read(protoIpAddress)
+		n, err := conn.Read(protoIpAddress)
 		if err != nil {
 			fmt.Println("could not read the ipv4 4 bytes")
 			return
@@ -76,13 +98,15 @@ func handleConnect(conn net.Conn) {
 
 	} else if protoAtype == 3 {
 		// domain name
-		protoDomainLen, err := reader.ReadByte()
+		count, err = conn.Read(singleByte)
 		if err != nil {
 			fmt.Println("could not read domain len", err)
 			return
 		}
+		protoDomainLen := singleByte[0]
+
 		protoDomainName := make([]byte, protoDomainLen)
-		n, err := reader.Read(protoDomainName)
+		n, err := conn.Read(protoDomainName)
 		if err != nil {
 			fmt.Println("could not read domain name")
 			return
@@ -98,14 +122,11 @@ func handleConnect(conn net.Conn) {
 	}
 	// read the dest port
 	protoDestPort := make([]byte, 2)
-	n, err := reader.Read(protoDestPort)
+	n, err := conn.Read(protoDestPort)
 	if err != nil {
 		fmt.Println("could not read port", err)
 		return
 	}
-	//portBuffer := bytes.NewReader(protoDestPort)
-	//var iPort int = 0
-	//err = binary.Read(portBuffer, binary.BigEndian, &iPort)
 	iPort := binary.BigEndian.Uint16(protoDestPort)
 	fmt.Println("port is", n, protoDestPort, iPort)
 
@@ -127,6 +148,8 @@ func handleConnect(conn net.Conn) {
 		if err != nil {
 			fmt.Println("unable to get an outbound net connection", err)
 			return
+		} else {
+			fmt.Println("got outbound connection!", outNewConn)
 		}
 
 		// RETURN FROM CONNECT HERE
@@ -143,27 +166,23 @@ func handleConnect(conn net.Conn) {
 		connectResponse[8] = 0 // port
 		connectResponse[9] = 0
 		fmt.Println("sending response to connect now")
-		conn.Write(connectResponse)
+		count, err = conn.Write(connectResponse)
+		if err != nil {
+			fmt.Println("err on write to client", err)
+			return
+		}
+		fmt.Println("wrote this number of bytes back to client", count)
 
-		/*
-			//nope
-			complete := make(chan bool, 2)
-			ch1 := make(chan bool, 1)
-			ch2 := make(chan bool, 1)
-			copyBytes(conn, outNewConn, complete, ch1, ch2)
-			copyBytes(outNewConn, conn, complete, ch2, ch1)
-			<-complete
-			<-complete
-		*/
-
+		fmt.Println("entering forloop for connection now...")
 		for {
-			go io.Copy(conn, outNewConn)
-			go io.Copy(outNewConn, conn)
+			go tonyCopy(1, conn, outNewConn)
+			go tonyCopy(2, outNewConn, conn)
 
 			// tried this it did not work
 			//go relay(conn, outNewConn)
 			//go relay(outNewConn, conn)
 		}
+		fmt.Println("got out of connection forloop!!!")
 
 	} else if protoCommand == 2 {
 		// this is a bind
@@ -185,47 +204,35 @@ func handleConnect(conn net.Conn) {
 
 	// need to move any other traffic along down that socket
 
-	for {
-	}
-
 }
 
-func copyBytes(src net.Conn, dst net.Conn,
-	complete chan bool, done chan bool, otherDone chan bool) {
-	var err error = nil
-	var bytes []byte = make([]byte, 256)
-	var read int = 0
+func tonyCopy(id int, src net.Conn, dst net.Conn) {
+	var buffer []byte = make([]byte, 512)
 	for {
-		select {
-		case <-otherDone:
-			complete <- true
-			return
-		default:
-			read, err = src.Read(bytes)
-			if err != nil {
-				complete <- true
-				done <- true
-				return
-			}
-			_, err = dst.Write(bytes[:read])
-			if err != nil {
-				complete <- true
-				done <- true
-				break
-			}
+		// read from src
+		count, err := src.Read(buffer)
+		if err != nil {
+			fmt.Println(id, err)
+			break
 		}
-	}
-}
+		// push to dst
+		// this will buffer the stdout writes so to make sure ordering is correct
+		// us os.Stdout.WriteString
+		//fmt.Println(id, "read from", src, dst, count)
+		msg := fmt.Sprintf("%d : %s : %d\n", id, "read from", count)
+		os.Stdout.WriteString(msg)
+		//fmt.Println(buffer[:count])
+		count, err = dst.Write(buffer[:count])
+		if err != nil {
+			fmt.Println(id, "err on write", err)
+			break
+		} else {
 
-// nope
-/*
-func relay(src net.Conn, dst net.Conn) {
-	io.Copy(dst, src)
-	dst.Close()
-	src.Close()
-	return
+		}
+		fmt.Println(id, "wrote this amount of bytes", count)
+	}
+	fmt.Println(id, "tonyCopy broke from for loop")
 }
-*/
 
 func main() {
 	args := os.Args
