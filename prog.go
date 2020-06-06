@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
 	"net"
 	"os"
 )
@@ -13,28 +14,27 @@ var globalId = 0
 func handleConnect(conn net.Conn) {
 	me := globalId
 	globalId++
-	msg := fmt.Sprintf("%d: starting handleConnect now\n", me)
-	os.Stdout.WriteString(msg)
+	log.Printf("%d: starting handleConnect now\n", me)
 
 	var singleByte []byte = make([]byte, 1)
 	count, err := conn.Read(singleByte)
 	if err != nil || count != 1 {
-		fmt.Println(me, "unable to read from net for proto version", err)
+		log.Fatalf("%d: unable to read from net for proto version: %v\n", me, err)
 		return
 	}
 	protoVersion := singleByte[0]
 	if protoVersion != 5 {
-		fmt.Println(me, "wrong protocol version", protoVersion)
+		log.Fatalf("%d: wrong protocol version", me)
 		return
 	}
 	count, err = conn.Read(singleByte)
 	if err != nil || count != 1 {
-		fmt.Println(me, "unalbe to read from net for numMethods", err)
+		log.Fatalf("%d: unable to read from net for numMethods: %v\n", me, err)
 		return
 	}
 	numMethods := singleByte[0]
 	if numMethods < 1 || numMethods > 255 {
-		fmt.Println(me, "incorrect num of methods", numMethods, err)
+		log.Fatalf("%d: incorrect number of methods: %d %v\n", me, numMethods, err)
 		return
 	}
 
@@ -42,7 +42,7 @@ func handleConnect(conn net.Conn) {
 	for i := 0; i < int(numMethods); i++ {
 		count, err := conn.Read(singleByte)
 		if err != nil || count != 1 {
-			fmt.Println(me, "err reading a method", err)
+			log.Fatalf("%d: error reading a method in a loop: %v\n", me, err)
 			return
 		}
 		methodData[i] = uint(singleByte[0])
@@ -58,33 +58,33 @@ func handleConnect(conn net.Conn) {
 	// send the request details next
 	count, err = conn.Read(singleByte)
 	if err != nil || count != 1 {
-		fmt.Println(me, "err reading request details", err)
+		log.Fatalf("%d: error reading request details: %v\n", me, err)
 		return
 	}
 	protoVersion = singleByte[0]
 	if protoVersion != 5 {
-		fmt.Println(me, "invalid proroversion", protoVersion)
+		log.Fatalf("%d: invalid protoVersion: %d\n", me, protoVersion)
 	}
 	count, err = conn.Read(singleByte)
 	if err != nil {
-		fmt.Println(me, "err reading request command", err)
+		log.Fatalf("%d: error reading request command: %v\n", me, err)
 	}
 	protoCommand := singleByte[0]
 
 	count, err = conn.Read(singleByte)
 	if err != nil {
-		fmt.Println(me, "weird in reserved", err)
+		log.Fatalf("%d: error reading reserved: %v\n", me, err)
 		return
 	}
 	protoReserved := singleByte[0]
 	if protoReserved != 0 {
-		fmt.Println(me, "reserved not zero", protoReserved)
+		log.Fatalf("%d: reserved not zero: %d\n", me, protoReserved)
 		return
 	}
 
 	count, err = conn.Read(singleByte)
 	if err != nil {
-		fmt.Println(me, "unable to read atype", err)
+		log.Fatalf("%d: error reading atype: %v", me, err)
 		return
 	}
 	protoAtype := singleByte[0]
