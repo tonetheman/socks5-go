@@ -225,12 +225,15 @@ func tonyCopy(id int, src net.Conn, dst net.Conn) {
 	msg := fmt.Sprintf("%d: start of tonyCopy\n", id)
 	cout(msg)
 	var buffer []byte = make([]byte, 512)
+	var brokeForRead bool = false
+	var brokeForWrite bool = false
 	for {
 		// read from src
 		msg := fmt.Sprintf("%d: before read\n", id)
 		cout(msg)
 		count, err := src.Read(buffer)
 		if err != nil {
+			brokeForRead = true
 			fmt.Println(id, err)
 			break
 		}
@@ -244,6 +247,7 @@ func tonyCopy(id int, src net.Conn, dst net.Conn) {
 		//fmt.Println(buffer[:count])
 		count, err = dst.Write(buffer[:count])
 		if err != nil {
+			brokeForWrite = true
 			fmt.Println(id, "err on write", err)
 			break
 		} else {
@@ -251,6 +255,14 @@ func tonyCopy(id int, src net.Conn, dst net.Conn) {
 		}
 		fmt.Println(id, "wrote this amount of bytes", count)
 	}
+	if brokeForRead {
+		fmt.Println(id, "read broke")
+	}
+	if brokeForWrite {
+		fmt.Println(id, "write broke")
+	}
+	src.Close()
+	dst.Close()
 	fmt.Println(id, "tonyCopy broke from for loop")
 }
 
