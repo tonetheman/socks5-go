@@ -7,6 +7,8 @@ import (
 	"os"
 )
 
+var globalId = 0
+
 func handleConnect(conn net.Conn) {
 	os.Stdout.WriteString("starting handleConnect now\n")
 	//defer conn.Close()
@@ -175,12 +177,11 @@ func handleConnect(conn net.Conn) {
 
 		fmt.Println("entering forloop for connection now...")
 
-		go tonyCopy(1, conn, outNewConn)
-		go tonyCopy(2, outNewConn, conn)
+		go tonyCopy(globalId, conn, outNewConn)
+		globalId++
 
-		// tried this it did not work
-		//go relay(conn, outNewConn)
-		//go relay(outNewConn, conn)
+		go tonyCopy(globalId, outNewConn, conn)
+		globalId++
 
 		fmt.Println("got out of connection forloop!!!")
 
