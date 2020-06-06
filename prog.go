@@ -84,7 +84,7 @@ func handleConnect(conn net.Conn) {
 
 	count, err = conn.Read(singleByte)
 	if err != nil {
-		log.Fatalf("%d: error reading atype: %v", me, err)
+		log.Fatalf("%d: error reading atype: %v\n", me, err)
 		return
 	}
 	protoAtype := singleByte[0]
@@ -96,16 +96,15 @@ func handleConnect(conn net.Conn) {
 		protoIpAddress = make([]byte, 4)
 		n, err := conn.Read(protoIpAddress)
 		if err != nil {
-			fmt.Println(me, "could not read the ipv4 4 bytes")
+			log.Fatalf("%d: could not read the ipv4 bytes: %v\n", me, err)
 			return
 		}
-		fmt.Println(me, "ip v4 addr", protoIpAddress, n)
-
+		log.Printf("%d: ipv4 addr %d %v\n", me, n, protoIpAddress)
 	} else if protoAtype == 3 {
 		// domain name
 		count, err = conn.Read(singleByte)
 		if err != nil {
-			fmt.Println(me, "could not read domain len", err)
+			log.Fatalf("%d: could not read domain len: %v\n", me, err)
 			return
 		}
 		protoDomainLen := singleByte[0]
@@ -113,17 +112,16 @@ func handleConnect(conn net.Conn) {
 		protoDomainName := make([]byte, protoDomainLen)
 		n, err := conn.Read(protoDomainName)
 		if err != nil {
-			fmt.Println(me, "could not read domain name")
+			log.Fatalf("%d: could not read domain name: %v\n", me, err)
 			return
 		}
 		protoDomainString = string(protoDomainName)
-		fmt.Println(me, "read this domain", n, protoDomainName)
-
+		log.Printf("%d: domain name is: %d %s\n", me, n, protoDomainName)
 	} else if protoAtype == 4 {
 		// ipv6 address
-		fmt.Println(me, "not handling ipv6 address")
+		log.Printf("%d: not handling ipv6 address\n", me)
 	} else {
-		fmt.Println(me, "unknown atype", protoAtype)
+		log.Printf("%d: unknown atype: %d\n", me, protoAtype)
 		return
 	}
 	// read the dest port
