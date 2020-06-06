@@ -8,8 +8,8 @@ import (
 )
 
 func handleConnect(conn net.Conn) {
-	fmt.Println("handling connect!")
-	defer conn.Close()
+	os.Stdout.WriteString("starting handleConnect now\n")
+	//defer conn.Close()
 	var singleByte []byte = make([]byte, 1)
 
 	count, err := conn.Read(singleByte)
@@ -174,14 +174,14 @@ func handleConnect(conn net.Conn) {
 		fmt.Println("wrote this number of bytes back to client", count)
 
 		fmt.Println("entering forloop for connection now...")
-		for {
-			go tonyCopy(1, conn, outNewConn)
-			go tonyCopy(2, outNewConn, conn)
 
-			// tried this it did not work
-			//go relay(conn, outNewConn)
-			//go relay(outNewConn, conn)
-		}
+		go tonyCopy(1, conn, outNewConn)
+		go tonyCopy(2, outNewConn, conn)
+
+		// tried this it did not work
+		//go relay(conn, outNewConn)
+		//go relay(outNewConn, conn)
+
 		fmt.Println("got out of connection forloop!!!")
 
 	} else if protoCommand == 2 {
@@ -206,10 +206,28 @@ func handleConnect(conn net.Conn) {
 
 }
 
+func pb(buffer []byte, len int) {
+	msg := fmt.Sprintf("in pb now with this many to print %d\n", len)
+	os.Stdout.WriteString(msg)
+	for i := 0; i < len; i++ {
+		msg := fmt.Sprintf("%d ", buffer[i])
+		os.Stdout.WriteString(msg)
+	}
+	os.Stdout.WriteString("\n")
+}
+
+func cout(msg string) {
+	os.Stdout.WriteString(msg)
+}
+
 func tonyCopy(id int, src net.Conn, dst net.Conn) {
+	msg := fmt.Sprintf("%d: start of tonyCopy\n", id)
+	cout(msg)
 	var buffer []byte = make([]byte, 512)
 	for {
 		// read from src
+		msg := fmt.Sprintf("%d: before read\n", id)
+		cout(msg)
 		count, err := src.Read(buffer)
 		if err != nil {
 			fmt.Println(id, err)
@@ -219,8 +237,9 @@ func tonyCopy(id int, src net.Conn, dst net.Conn) {
 		// this will buffer the stdout writes so to make sure ordering is correct
 		// us os.Stdout.WriteString
 		//fmt.Println(id, "read from", src, dst, count)
-		msg := fmt.Sprintf("%d : %s : %d\n", id, "read from", count)
+		msg = fmt.Sprintf("%d : %s : %d\n", id, "read from", count)
 		os.Stdout.WriteString(msg)
+		pb(buffer, count)
 		//fmt.Println(buffer[:count])
 		count, err = dst.Write(buffer[:count])
 		if err != nil {
