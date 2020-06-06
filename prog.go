@@ -177,35 +177,27 @@ func handleConnect(conn net.Conn) {
 			log.Fatalf("%d: err on write to client: %v\n", me, err)
 			return
 		}
-		fmt.Println(me, "wrote this number of bytes back to client", count)
-
-		fmt.Println(me, "entering forloop for connection now...")
+		log.Printf("%d: wrote this number of bytes back to client: %d\n", me, count)
+		log.Printf("%d: entering for loop for connection now...\n", me)
 
 		go tonyCopy(me, conn, outNewConn)
 
 		go tonyCopy(otherConnId, outNewConn, conn)
-
-		fmt.Println("got out of connection forloop!!!")
-
+		log.Printf("%d: got out of connection forloop!!!", me)
 	} else if protoCommand == 2 {
 		// this is a bind
-		fmt.Println("GOT A BIND COMMAND WHAT TO DO?")
+		log.Println("GOT A BIND COMMAND WHAT TO DO?")
 		return
 	} else if protoCommand == 3 {
 		// this is a UDP associate
-		fmt.Println("GOT A UDP COMMAND WHAT TO DO?")
+		log.Println("GOT A UDP COMMAND WHAT TO DO?")
 		return
 	} else {
-		fmt.Println("err on request detail", protoCommand)
+		log.Println("err on request detail")
 		return
 	}
-	fmt.Println("returning now")
+	log.Println("returning now")
 	return
-
-	// need to connect tcp wise to the port requested and the IP address requested
-	// or domain
-
-	// need to move any other traffic along down that socket
 
 }
 
