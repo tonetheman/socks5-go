@@ -128,15 +128,15 @@ func handleConnect(conn net.Conn) {
 	protoDestPort := make([]byte, 2)
 	n, err := conn.Read(protoDestPort)
 	if err != nil {
-		fmt.Println(me, "could not read port", err)
+		log.Printf("%d: could not read port: %v\n", me, err)
 		return
 	}
 	iPort := binary.BigEndian.Uint16(protoDestPort)
-	fmt.Println(me, "port is", n, protoDestPort, iPort)
+	log.Printf("%d: port is %d %d %d\n", me, n, protoDestPort, iPort)
 
 	if protoCommand == 1 {
 		// this is a connect
-		fmt.Println(me, "making outbound connection...")
+		log.Printf("%d: making outbound connection\n", me)
 		var cs string
 		if protoAtype == 1 {
 			cs = fmt.Sprintf("%d.%d.%d.%d:%d",
@@ -146,16 +146,16 @@ func handleConnect(conn net.Conn) {
 			cs = fmt.Sprintf("%s:%d",
 				protoDomainString, iPort)
 		}
-		fmt.Println(me, "cs is", cs)
+		log.Printf("%d: cs is %s\n", me, cs)
 		outNewConn, err := net.Dial("tcp4", cs)
 		otherConnId := globalId
 		globalId++
 
 		if err != nil {
-			fmt.Println(me, "unable to get an outbound net connection", err)
+			log.Fatalf("%d: unable to get outbound connection: %v\n", me, err)
 			return
 		} else {
-			fmt.Println(me, "got outbound connection!", outNewConn)
+			log.Printf("%d: got outbound connection: %v\n", err, outNewConn)
 		}
 
 		// RETURN FROM CONNECT HERE
@@ -171,10 +171,10 @@ func handleConnect(conn net.Conn) {
 		connectResponse[7] = 0
 		connectResponse[8] = 0 // port
 		connectResponse[9] = 0
-		fmt.Println(me, "sending response to connect now")
+		log.Printf("%d: sending response to connect now\n", me)
 		count, err = conn.Write(connectResponse)
 		if err != nil {
-			fmt.Println(me, "err on write to client", err)
+			log.Fatalf("%d: err on write to client: %v\n", me, err)
 			return
 		}
 		fmt.Println(me, "wrote this number of bytes back to client", count)
