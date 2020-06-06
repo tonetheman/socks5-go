@@ -7,31 +7,34 @@ import (
 	"os"
 )
 
+var debug bool = false
 var globalId = 0
 
 func handleConnect(conn net.Conn) {
-	os.Stdout.WriteString("starting handleConnect now\n")
-	//defer conn.Close()
-	var singleByte []byte = make([]byte, 1)
+	me := globalId
+	globalId++
+	msg := fmt.Sprintf("%d: starting handleConnect now\n", me)
+	os.Stdout.WriteString(msg)
 
+	var singleByte []byte = make([]byte, 1)
 	count, err := conn.Read(singleByte)
 	if err != nil || count != 1 {
-		fmt.Println("unable to read from net for proto version", err)
+		fmt.Println(me, "unable to read from net for proto version", err)
 		return
 	}
 	protoVersion := singleByte[0]
 	if protoVersion != 5 {
-		fmt.Println("wrong protocol version", protoVersion)
+		fmt.Println(me, "wrong protocol version", protoVersion)
 		return
 	}
 	count, err = conn.Read(singleByte)
 	if err != nil || count != 1 {
-		fmt.Println("unalbe to read from net for numMethods", err)
+		fmt.Println(me, "unalbe to read from net for numMethods", err)
 		return
 	}
 	numMethods := singleByte[0]
 	if numMethods < 1 || numMethods > 255 {
-		fmt.Println("incorrect num of methods", numMethods, err)
+		fmt.Println(me, "incorrect num of methods", numMethods, err)
 		return
 	}
 
@@ -39,7 +42,7 @@ func handleConnect(conn net.Conn) {
 	for i := 0; i < int(numMethods); i++ {
 		count, err := conn.Read(singleByte)
 		if err != nil || count != 1 {
-			fmt.Println("err reading a method", err)
+			fmt.Println(me, "err reading a method", err)
 			return
 		}
 		methodData[i] = uint(singleByte[0])
@@ -55,33 +58,33 @@ func handleConnect(conn net.Conn) {
 	// send the request details next
 	count, err = conn.Read(singleByte)
 	if err != nil || count != 1 {
-		fmt.Println("err reading request details", err)
+		fmt.Println(me, "err reading request details", err)
 		return
 	}
 	protoVersion = singleByte[0]
 	if protoVersion != 5 {
-		fmt.Println("invalid proroversion", protoVersion)
+		fmt.Println(me, "invalid proroversion", protoVersion)
 	}
 	count, err = conn.Read(singleByte)
 	if err != nil {
-		fmt.Println("err reading request command", err)
+		fmt.Println(me, "err reading request command", err)
 	}
 	protoCommand := singleByte[0]
 
 	count, err = conn.Read(singleByte)
 	if err != nil {
-		fmt.Println("weird in reserved", err)
+		fmt.Println(me, "weird in reserved", err)
 		return
 	}
 	protoReserved := singleByte[0]
 	if protoReserved != 0 {
-		fmt.Println("reserved not zero", protoReserved)
+		fmt.Println(me, "reserved not zero", protoReserved)
 		return
 	}
 
 	count, err = conn.Read(singleByte)
 	if err != nil {
-		fmt.Println("unable to read atype", err)
+		fmt.Println(me, "unable to read atype", err)
 		return
 	}
 	protoAtype := singleByte[0]
@@ -93,16 +96,16 @@ func handleConnect(conn net.Conn) {
 		protoIpAddress = make([]byte, 4)
 		n, err := conn.Read(protoIpAddress)
 		if err != nil {
-			fmt.Println("could not read the ipv4 4 bytes")
+			fmt.Println(me, "could not read the ipv4 4 bytes")
 			return
 		}
-		fmt.Println("ip v4 addr", protoIpAddress, n)
+		fmt.Println(me, "ip v4 addr", protoIpAddress, n)
 
 	} else if protoAtype == 3 {
 		// domain name
 		count, err = conn.Read(singleByte)
 		if err != nil {
-			fmt.Println("could not read domain len", err)
+			fmt.Println(me, "could not read domain len", err)
 			return
 		}
 		protoDomainLen := singleByte[0]
@@ -110,31 +113,32 @@ func handleConnect(conn net.Conn) {
 		protoDomainName := make([]byte, protoDomainLen)
 		n, err := conn.Read(protoDomainName)
 		if err != nil {
-			fmt.Println("could not read domain name")
+			fmt.Println(me, "could not read domain name")
 			return
 		}
 		protoDomainString = string(protoDomainName)
-		fmt.Println("read this domain", n, protoDomainName)
+		fmt.Println(me, "read this domain", n, protoDomainName)
 
 	} else if protoAtype == 4 {
 		// ipv6 address
+		fmt.Println(me, "not handling ipv6 address")
 	} else {
-		fmt.Println("unknown atype", protoAtype)
+		fmt.Println(me, "unknown atype", protoAtype)
 		return
 	}
 	// read the dest port
 	protoDestPort := make([]byte, 2)
 	n, err := conn.Read(protoDestPort)
 	if err != nil {
-		fmt.Println("could not read port", err)
+		fmt.Println(me, "could not read port", err)
 		return
 	}
 	iPort := binary.BigEndian.Uint16(protoDestPort)
-	fmt.Println("port is", n, protoDestPort, iPort)
+	fmt.Println(me, "port is", n, protoDestPort, iPort)
 
 	if protoCommand == 1 {
 		// this is a connect
-		fmt.Println("making outbound connection...")
+		fmt.Println(me, "making outbound connection...")
 		var cs string
 		if protoAtype == 1 {
 			cs = fmt.Sprintf("%d.%d.%d.%d:%d",
@@ -144,14 +148,16 @@ func handleConnect(conn net.Conn) {
 			cs = fmt.Sprintf("%s:%d",
 				protoDomainString, iPort)
 		}
-		fmt.Println("cs is", cs)
-		//var outNetConn net.Conn
+		fmt.Println(me, "cs is", cs)
 		outNewConn, err := net.Dial("tcp4", cs)
+		otherConnId := globalId
+		globalId++
+
 		if err != nil {
-			fmt.Println("unable to get an outbound net connection", err)
+			fmt.Println(me, "unable to get an outbound net connection", err)
 			return
 		} else {
-			fmt.Println("got outbound connection!", outNewConn)
+			fmt.Println(me, "got outbound connection!", outNewConn)
 		}
 
 		// RETURN FROM CONNECT HERE
@@ -167,21 +173,19 @@ func handleConnect(conn net.Conn) {
 		connectResponse[7] = 0
 		connectResponse[8] = 0 // port
 		connectResponse[9] = 0
-		fmt.Println("sending response to connect now")
+		fmt.Println(me, "sending response to connect now")
 		count, err = conn.Write(connectResponse)
 		if err != nil {
-			fmt.Println("err on write to client", err)
+			fmt.Println(me, "err on write to client", err)
 			return
 		}
-		fmt.Println("wrote this number of bytes back to client", count)
+		fmt.Println(me, "wrote this number of bytes back to client", count)
 
-		fmt.Println("entering forloop for connection now...")
+		fmt.Println(me, "entering forloop for connection now...")
 
-		go tonyCopy(globalId, conn, outNewConn)
-		globalId++
+		go tonyCopy(me, conn, outNewConn)
 
-		go tonyCopy(globalId, outNewConn, conn)
-		globalId++
+		go tonyCopy(otherConnId, outNewConn, conn)
 
 		fmt.Println("got out of connection forloop!!!")
 
@@ -208,6 +212,9 @@ func handleConnect(conn net.Conn) {
 }
 
 func pb(buffer []byte, len int) {
+	if !debug {
+		return
+	}
 	msg := fmt.Sprintf("in pb now with this many to print %d\n", len)
 	os.Stdout.WriteString(msg)
 	for i := 0; i < len; i++ {
