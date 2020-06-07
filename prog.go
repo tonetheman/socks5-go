@@ -6,14 +6,18 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 )
 
-var debug bool = false
-var globalId = 0
+type SocksProxy struct {
+	port     int
+	globalId int
+	debug    bool
+}
 
-func handleConnect(conn net.Conn) {
-	me := globalId
-	globalId++
+func handleConnect(conn net.Conn, p *SocksProxy) {
+	me := p.globalId
+	p.globalId++
 	log.Printf("%d: starting handleConnect now\n", me)
 
 	var singleByte []byte = make([]byte, 1)
@@ -148,8 +152,8 @@ func handleConnect(conn net.Conn) {
 		}
 		log.Printf("%d: cs is %s\n", me, cs)
 		outNewConn, err := net.Dial("tcp4", cs)
-		otherConnId := globalId
-		globalId++
+		otherConnId := p.globalId
+		p.globalId++
 
 		if err != nil {
 			log.Fatalf("%d: unable to get outbound connection: %v\n", me, err)
@@ -180,9 +184,9 @@ func handleConnect(conn net.Conn) {
 		log.Printf("%d: wrote this number of bytes back to client: %d\n", me, count)
 		log.Printf("%d: entering for loop for connection now...\n", me)
 
-		go tonyCopy(me, conn, outNewConn)
+		go pCopy(me, conn, outNewConn, p)
 
-		go tonyCopy(otherConnId, outNewConn, conn)
+		go pCopy(otherConnId, outNewConn, conn, p)
 		log.Printf("%d: got out of connection forloop!!!", me)
 	} else if protoCommand == 2 {
 		// this is a bind
@@ -201,8 +205,8 @@ func handleConnect(conn net.Conn) {
 
 }
 
-func pb(buffer []byte, len int) {
-	if !debug {
+func pb(buffer []byte, len int, p *SocksProxy) {
+	if !p.debug {
 		return
 	}
 	msg := fmt.Sprintf("in pb now with this many to print %d\n", len)
@@ -218,7 +222,7 @@ func cout(msg string) {
 	os.Stdout.WriteString(msg)
 }
 
-func tonyCopy(id int, src net.Conn, dst net.Conn) {
+func pCopy(id int, src net.Conn, dst net.Conn, p *SocksProxy) {
 	msg := fmt.Sprintf("%d: start of tonyCopy\n", id)
 	cout(msg)
 	var buffer []byte = make([]byte, 512)
@@ -240,7 +244,7 @@ func tonyCopy(id int, src net.Conn, dst net.Conn) {
 		//fmt.Println(id, "read from", src, dst, count)
 		msg = fmt.Sprintf("%d : %s : %d\n", id, "read from", count)
 		os.Stdout.WriteString(msg)
-		pb(buffer, count)
+		pb(buffer, count, p)
 		//fmt.Println(buffer[:count])
 		count, err = dst.Write(buffer[:count])
 		if err != nil {
@@ -263,15 +267,15 @@ func tonyCopy(id int, src net.Conn, dst net.Conn) {
 	fmt.Println(id, "tonyCopy broke from for loop")
 }
 
-func main() {
-	args := os.Args
-	if len(args) == 1 {
-		// they ran without any params
-		fmt.Println("need a port")
-		return
-	}
+func newSocksProxyServer(_port int) *SocksProxy {
+	res := SocksProxy{port: _port,
+		globalId: 0}
+	return &res
+}
 
-	port := ":" + args[1]
+func (p *SocksProxy) ListenAndServe() {
+	port := fmt.Sprintf(":%d", p.port)
+	log.Println("listening on this: ", port)
 	listnr, err := net.Listen("tcp4", port)
 	if err != nil {
 		fmt.Println("unable to listen on", port, err)
@@ -282,9 +286,27 @@ func main() {
 	for {
 		conn, err := listnr.Accept()
 		if err != nil {
-			fmt.Println("got an err on accept", err)
+			log.Println("got an err on accept", err)
 			return
 		}
-		go handleConnect(conn)
+		go handleConnect(conn, p)
 	}
+}
+
+func atoi(s string) int {
+	res, _ := strconv.Atoi(s)
+	return res
+}
+
+func main() {
+	args := os.Args
+	if len(args) == 1 {
+		// they ran without any params
+		fmt.Println("need a port")
+		return
+	}
+
+	port := args[1]
+	proxy := newSocksProxyServer(atoi(port))
+	proxy.ListenAndServe()
 }
